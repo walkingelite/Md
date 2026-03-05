@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import hljs from 'highlight.js'
+import { writeToClipboard } from '../utils/clipboard'
 
 const LANG_MAP = {
   js: 'javascript', jsx: 'javascript', mjs: 'javascript', cjs: 'javascript',
@@ -50,7 +51,7 @@ export default function CodeViewer({ file }) {
   const lineCount = useMemo(() => file.content.split('\n').length, [file.content])
 
   const copyAll = () => {
-    navigator.clipboard.writeText(file.content).then(() => {
+    writeToClipboard(file.content).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     })

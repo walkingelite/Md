@@ -1,3 +1,7 @@
+import { Capacitor } from '@capacitor/core'
+
+const isAndroid = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'android'
+
 const MusicIcon = () => (
   <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
     <path d="M9 18V5l12-2v13"/>
@@ -54,11 +58,15 @@ export default function MediaViewer({ file }) {
         )}
 
         {file.type === 'pdf' && (
-          <embed
-            src={file.url}
-            type="application/pdf"
-            className="media-pdf"
-          />
+          isAndroid ? (
+            <div className="media-unsupported">
+              <FileBinaryIcon />
+              <p>PDF preview is not available in the Android WebView.</p>
+              <span>Open the file with a PDF reader app on your device.</span>
+            </div>
+          ) : (
+            <embed src={file.url} type="application/pdf" className="media-pdf" />
+          )
         )}
 
         {file.type === 'book' && (

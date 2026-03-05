@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { writeToClipboard } from '../utils/clipboard'
 import { marked } from 'marked'
 import markedAlert from 'marked-alert'
 import markedFootnote from 'marked-footnote'
@@ -111,7 +112,7 @@ export default function Preview({ file, showTOC }) {
       const btn = e.target.closest('.copy-btn')
       if (!btn) return
       const code = decodeURIComponent(btn.dataset.code || '')
-      navigator.clipboard.writeText(code).then(() => {
+      writeToClipboard(code).then(() => {
         btn.classList.add('copied')
         btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Copied!`
         setTimeout(() => {
@@ -127,7 +128,7 @@ export default function Preview({ file, showTOC }) {
       if (!a) return
       e.preventDefault()
       const url = window.location.href.split('#')[0] + a.getAttribute('href')
-      navigator.clipboard.writeText(url)
+      writeToClipboard(url)
       const svg = a.querySelector('svg')
       if (svg) {
         svg.style.color = 'var(--success)'
@@ -151,7 +152,7 @@ export default function Preview({ file, showTOC }) {
   }, [])
 
   const copyAll = () => {
-    navigator.clipboard.writeText(file.content).then(() => {
+    writeToClipboard(file.content).then(() => {
       setCopiedAll(true)
       setTimeout(() => setCopiedAll(false), 2000)
     })
