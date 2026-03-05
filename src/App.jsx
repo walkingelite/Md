@@ -315,7 +315,7 @@ export default function App() {
 
         <div className="toolbar-actions">
           <button className="btn btn-primary" onClick={openFilePicker}>
-            <FolderOpenIcon /> Open File
+            <FolderOpenIcon /> <span className="btn-label">Open File</span>
           </button>
           <button className="btn-icon" onClick={toggleTheme} title="Toggle theme">
             {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
@@ -325,10 +325,20 @@ export default function App() {
 
       {/* ── Body ── */}
       <div className="layout">
+        {/* Mobile backdrop — closes sidebar when tapped */}
+        <div
+          className={`sidebar-backdrop${sidebarOpen ? ' visible' : ''}`}
+          onClick={() => setSidebarOpen(false)}
+        />
+
         <Sidebar
           files={files}
           activeId={activeId}
-          onSelect={setActiveId}
+          onSelect={(id) => {
+            setActiveId(id)
+            // auto-close sidebar on mobile after selecting a file
+            if (window.innerWidth <= 600) setSidebarOpen(false)
+          }}
           onRemove={removeFile}
           collapsed={!sidebarOpen}
         />

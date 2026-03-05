@@ -811,6 +811,79 @@
 @keyframes spin { to { transform: rotate(360deg); } }
 .epub-error { color: #f85149; }
 
+/* ── Mobile sidebar backdrop ─────────────────────────── */
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 99;
+}
+
+/* ── Responsive ──────────────────────────────────────── */
+
+/* Tablet: narrow sidebar, hide TOC panel */
+@media (max-width: 860px) {
+  :root { --sidebar-width: 220px; }
+  .toc-panel { display: none; }
+  .toolbar-logo span { display: none; }
+  .toolbar-divider { display: none; }
+}
+
+/* Mobile: overlay sidebar, compact toolbar */
+@media (max-width: 600px) {
+  :root { --toolbar-height: 52px; }
+
+  /* Toolbar */
+  .toolbar { padding: 0 10px; gap: 8px; }
+  .btn-label { display: none; }
+  .btn.btn-primary { padding: 8px 10px; }
+
+  /* Sidebar: fixed overlay, slides in/out */
+  .sidebar {
+    position: fixed !important;
+    top: var(--toolbar-height);
+    left: 0;
+    bottom: 24px;
+    width: min(80vw, 300px) !important;
+    z-index: 100;
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
+    transform: translateX(0);
+    transition: transform 0.25s ease !important;
+  }
+  .sidebar.collapsed {
+    transform: translateX(-100%) !important;
+    width: min(80vw, 300px) !important;
+  }
+
+  /* Show backdrop when sidebar is open */
+  .sidebar-backdrop.visible { display: block; }
+
+  /* TOC never shown on mobile */
+  .toc-panel { display: none !important; }
+
+  /* Tighter content padding */
+  .preview-scroll { padding: 20px 16px; }
+  .raw-content pre { padding: 20px 16px; }
+
+  /* Code viewer */
+  .code-viewer-gutter { min-width: 40px; padding: 16px 10px 16px 8px; }
+  .code-viewer-pre { padding: 16px 12px; font-size: 12px; }
+  .code-viewer-body { font-size: 12px; }
+
+  /* Welcome screen */
+  .welcome { padding: 24px 16px; }
+  .welcome-features { grid-template-columns: 1fr; }
+
+  /* Touch-friendly targets (min 44px) */
+  .btn-icon { padding: 10px; min-width: 44px; min-height: 44px; }
+  .file-item { padding: 10px 12px; }
+  .file-remove { opacity: 1 !important; }
+
+  /* Hide right-side statusbar label to save space */
+  .statusbar span:last-child { display: none; }
+}
+
 /* ── Status Bar ──────────────────────────────────────── */
 .statusbar {
   height: 24px;
