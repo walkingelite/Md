@@ -10,19 +10,19 @@ marked.setOptions({
 
 const renderer = new marked.Renderer()
 
-renderer.code = function(code, lang) {
+renderer.code = function({ text, lang }) {
   const language = lang && hljs.getLanguage(lang) ? lang : 'plaintext'
   let highlighted
   try {
-    highlighted = hljs.highlight(code, { language }).value
+    highlighted = hljs.highlight(text, { language }).value
   } catch {
-    highlighted = hljs.highlightAuto(code).value
+    highlighted = hljs.highlightAuto(text).value
   }
   const langLabel = lang || 'text'
   return `<div class="code-block-wrap">
     <div class="code-block-header">
       <span class="code-lang">${langLabel}</span>
-      <button class="copy-btn" data-code="${encodeURIComponent(code)}">
+      <button class="copy-btn" data-code="${encodeURIComponent(text)}">
         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
         </svg>
@@ -33,9 +33,9 @@ renderer.code = function(code, lang) {
   </div>`
 }
 
-renderer.heading = function(text, level) {
+renderer.heading = function({ text, depth }) {
   const slug = text.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-')
-  return `<h${level} id="heading-${slug}">${text}</h${level}>`
+  return `<h${depth} id="heading-${slug}">${text}</h${depth}>`
 }
 
 marked.use({ renderer })
