@@ -3,6 +3,7 @@ import Sidebar from './components/Sidebar'
 import Preview from './components/Preview'
 import CodeViewer from './components/CodeViewer'
 import MediaViewer from './components/MediaViewer'
+import EpubViewer from './components/EpubViewer'
 import './App.css'
 
 let idCounter = 0
@@ -14,6 +15,8 @@ const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', '
 const VIDEO_EXTS = new Set(['mp4', 'mov', 'webm', 'avi', 'mkv', 'ogv', 'm4v'])
 const AUDIO_EXTS = new Set(['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'opus'])
 const PDF_EXTS = new Set(['pdf'])
+const EPUB_EXTS = new Set(['epub'])
+const BOOK_EXTS = new Set(['mobi', 'azw', 'azw3', 'djvu', 'fb2'])
 
 function getFileType(name) {
   const ext = name.split('.').pop().toLowerCase()
@@ -22,6 +25,8 @@ function getFileType(name) {
   if (VIDEO_EXTS.has(ext)) return 'video'
   if (AUDIO_EXTS.has(ext)) return 'audio'
   if (PDF_EXTS.has(ext)) return 'pdf'
+  if (EPUB_EXTS.has(ext)) return 'epub'
+  if (BOOK_EXTS.has(ext)) return 'book'
   return 'code'
 }
 
@@ -42,6 +47,7 @@ const ACCEPTED = [
   '.mp4', '.mov', '.webm', '.avi', '.mkv', '.ogv', '.m4v',
   '.mp3', '.wav', '.ogg', '.flac', '.aac', '.m4a', '.opus',
   '.pdf',
+  '.epub', '.mobi', '.azw', '.azw3', '.djvu', '.fb2',
 ].join(',')
 
 // ── Icons ────────────────────────────────────────────
@@ -191,7 +197,7 @@ export default function App() {
 
     Promise.all(allFiles.map(f => {
       const type = getFileType(f.name)
-      if (type === 'markdown' || type === 'code') {
+      if (type === 'markdown' || type === 'code') { // text-based
         return f.text().then(content => ({ id: uid(), name: f.name, type, content }))
       } else {
         const url = URL.createObjectURL(f)
@@ -257,7 +263,9 @@ export default function App() {
       ? `${activeFile.content.trim().split(/\s+/).filter(Boolean).length.toLocaleString()} words`
       : activeFile.type === 'code'
         ? `${activeFile.content.split('\n').length} lines`
-        : activeFile.type.toUpperCase()
+        : activeFile.type === 'epub' ? 'EPUB'
+          : activeFile.type === 'book' ? activeFile.name.split('.').pop().toUpperCase()
+          : activeFile.type.toUpperCase()
     : `${files.length} file${files.length !== 1 ? 's' : ''} open`
 
   return (
@@ -335,7 +343,9 @@ export default function App() {
 
           {activeFile ? (
             activeFile.type === 'markdown' ? (
-              <Preview file={activeFile} showTOC={showTOC} />
+              <Preview key={activeFile.id} file={activeFile} showTOC={showTOC} />
+            ) : activeFile.type === 'epub' ? (
+              <EpubViewer key={activeFile.id} file={activeFile} />
             ) : activeFile.type === 'code' ? (
               <CodeViewer file={activeFile} />
             ) : (

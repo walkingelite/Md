@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { marked } from 'marked'
 import markedAlert from 'marked-alert'
 import markedFootnote from 'marked-footnote'
@@ -83,18 +83,11 @@ const CheckIcon = () => (
 
 export default function Preview({ file, showTOC }) {
   const [tab, setTab] = useState('preview')
-  const [toc, setToc] = useState([])
   const [copiedAll, setCopiedAll] = useState(false)
   const [progress, setProgress] = useState(0)
   const previewRef = useRef(null)
 
-  useEffect(() => {
-    if (file) {
-      setToc(extractTOC(file.content))
-      setTab('preview')
-      setProgress(0)
-    }
-  }, [file?.id])
+  const toc = useMemo(() => (file ? extractTOC(file.content) : []), [file])
 
   // Reading progress bar
   useEffect(() => {

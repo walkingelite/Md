@@ -61,11 +61,11 @@ export default function MediaViewer({ file }) {
           />
         )}
 
-        {file.type === 'binary' && (
+        {file.type === 'book' && (
           <div className="media-unsupported">
             <FileBinaryIcon />
-            <p>Preview not available for this file type.</p>
-            <span>{file.name}</span>
+            <p>This book format cannot be previewed in the browser.</p>
+            <span>Supported ebook format: .epub — Convert .mobi/.azw/.azw3 to EPUB to read here.</span>
           </div>
         )}
       </div>
