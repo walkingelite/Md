@@ -1,12 +1,50 @@
 import { useState, useCallback, useRef } from 'react'
 import Sidebar from './components/Sidebar'
 import Preview from './components/Preview'
+import CodeViewer from './components/CodeViewer'
+import MediaViewer from './components/MediaViewer'
 import './App.css'
 
 let idCounter = 0
 const uid = () => ++idCounter
 
-// ── Icons ────────────────────────────────────────────────
+// ── File type detection ───────────────────────────────
+const MARKDOWN_EXTS = new Set(['md', 'markdown'])
+const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico', 'tiff', 'avif'])
+const VIDEO_EXTS = new Set(['mp4', 'mov', 'webm', 'avi', 'mkv', 'ogv', 'm4v'])
+const AUDIO_EXTS = new Set(['mp3', 'wav', 'ogg', 'flac', 'aac', 'm4a', 'opus'])
+const PDF_EXTS = new Set(['pdf'])
+
+function getFileType(name) {
+  const ext = name.split('.').pop().toLowerCase()
+  if (MARKDOWN_EXTS.has(ext)) return 'markdown'
+  if (IMAGE_EXTS.has(ext)) return 'image'
+  if (VIDEO_EXTS.has(ext)) return 'video'
+  if (AUDIO_EXTS.has(ext)) return 'audio'
+  if (PDF_EXTS.has(ext)) return 'pdf'
+  return 'code'
+}
+
+const ACCEPTED = [
+  '.md', '.markdown',
+  '.txt', '.csv', '.log',
+  '.js', '.jsx', '.mjs', '.cjs',
+  '.ts', '.tsx',
+  '.py', '.rb', '.rs', '.go',
+  '.java', '.kt', '.swift',
+  '.c', '.cpp', '.cc', '.h', '.hpp', '.cs', '.php', '.r', '.lua',
+  '.css', '.scss', '.less',
+  '.html', '.htm', '.xml',
+  '.json', '.yaml', '.yml', '.toml',
+  '.sql', '.sh', '.bash', '.zsh', '.fish', '.ps1', '.bat',
+  '.dockerfile', '.graphql', '.gql', '.env', '.gitignore',
+  '.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.bmp', '.ico', '.tiff', '.avif',
+  '.mp4', '.mov', '.webm', '.avi', '.mkv', '.ogv', '.m4v',
+  '.mp3', '.wav', '.ogg', '.flac', '.aac', '.m4a', '.opus',
+  '.pdf',
+].join(',')
+
+// ── Icons ────────────────────────────────────────────
 const LogoIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
@@ -68,6 +106,26 @@ const BigFileIcon = () => (
   </svg>
 )
 
+const CodeIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/>
+  </svg>
+)
+
+const ImageIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+    <circle cx="8.5" cy="8.5" r="1.5"/>
+    <polyline points="21 15 16 10 5 21"/>
+  </svg>
+)
+
+const VideoIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/>
+  </svg>
+)
+
 // ── Welcome Screen ───────────────────────────────────────
 function Welcome({ onOpen }) {
   return (
@@ -76,8 +134,8 @@ function Welcome({ onOpen }) {
         <div className="welcome-icon">
           <BigFileIcon />
         </div>
-        <h2>Markdown Reader</h2>
-        <p>Open any <code style={{ background: 'var(--bg-tertiary)', padding: '2px 6px', borderRadius: 4, fontSize: 13 }}>.md</code> file to start reading with a beautiful, distraction-free experience.</p>
+        <h2>File Reader</h2>
+        <p>Open any file to view it — markdown, code, images, videos, PDFs, and more.</p>
         <div className="welcome-actions">
           <button className="btn btn-primary" onClick={onOpen}>
             <FolderOpenIcon /> Open File
@@ -86,23 +144,23 @@ function Welcome({ onOpen }) {
         <div className="welcome-features">
           <div className="feature-card">
             <BigFileIcon style={{ width: 18, height: 18 }} />
-            <h4>Multiple Files</h4>
-            <p>Open and switch between multiple .md files easily.</p>
+            <h4>Markdown</h4>
+            <p>Rich rendering with ToC, footnotes, alerts, and syntax highlighting.</p>
           </div>
           <div className="feature-card">
-            <TOCIcon />
-            <h4>Table of Contents</h4>
-            <p>Auto-generated navigation from your headings.</p>
+            <CodeIcon />
+            <h4>Code Files</h4>
+            <p>Syntax highlighting for 20+ languages with line numbers.</p>
           </div>
           <div className="feature-card">
-            <SunIcon />
-            <h4>Dark & Light</h4>
-            <p>Toggle between dark and light themes.</p>
+            <ImageIcon />
+            <h4>Images & Video</h4>
+            <p>Preview PNG, JPG, GIF, SVG, MP4, MOV and more.</p>
           </div>
           <div className="feature-card">
-            <FolderOpenIcon />
-            <h4>Drag & Drop</h4>
-            <p>Drop .md files anywhere to open them instantly.</p>
+            <VideoIcon />
+            <h4>PDF & Audio</h4>
+            <p>Embedded PDF viewer and native audio player support.</p>
           </div>
         </div>
       </div>
@@ -128,16 +186,18 @@ export default function App() {
   }
 
   const loadFiles = useCallback((fileList) => {
-    const mdFiles = Array.from(fileList).filter(f =>
-      f.name.endsWith('.md') || f.name.endsWith('.markdown')
-    )
-    if (mdFiles.length === 0) return
+    const allFiles = Array.from(fileList)
+    if (allFiles.length === 0) return
 
-    Promise.all(mdFiles.map(f => f.text().then(content => ({
-      id: uid(),
-      name: f.name,
-      content,
-    })))).then(loaded => {
+    Promise.all(allFiles.map(f => {
+      const type = getFileType(f.name)
+      if (type === 'markdown' || type === 'code') {
+        return f.text().then(content => ({ id: uid(), name: f.name, type, content }))
+      } else {
+        const url = URL.createObjectURL(f)
+        return Promise.resolve({ id: uid(), name: f.name, type, url })
+      }
+    })).then(loaded => {
       setFiles(prev => {
         const existingNames = new Set(prev.map(f => f.name))
         const fresh = loaded.filter(f => !existingNames.has(f.name))
@@ -161,6 +221,8 @@ export default function App() {
 
   const removeFile = (id) => {
     setFiles(prev => {
+      const file = prev.find(f => f.id === id)
+      if (file?.url) URL.revokeObjectURL(file.url)
       const next = prev.filter(f => f.id !== id)
       if (id === activeId) {
         setActiveId(next.length > 0 ? next[next.length - 1].id : null)
@@ -188,9 +250,15 @@ export default function App() {
     if (e.dataTransfer.files?.length) loadFiles(e.dataTransfer.files)
   }
 
-  const statusWords = activeFile
-    ? activeFile.content.trim().split(/\s+/).filter(Boolean).length
-    : 0
+  const isMarkdown = activeFile?.type === 'markdown'
+
+  const statusInfo = activeFile
+    ? activeFile.type === 'markdown'
+      ? `${activeFile.content.trim().split(/\s+/).filter(Boolean).length.toLocaleString()} words`
+      : activeFile.type === 'code'
+        ? `${activeFile.content.split('\n').length} lines`
+        : activeFile.type.toUpperCase()
+    : `${files.length} file${files.length !== 1 ? 's' : ''} open`
 
   return (
     <div
@@ -204,7 +272,7 @@ export default function App() {
       <input
         ref={fileInputRef}
         type="file"
-        accept=".md,.markdown"
+        accept={ACCEPTED}
         multiple
         style={{ display: 'none' }}
         onChange={onInputChange}
@@ -227,9 +295,10 @@ export default function App() {
         </button>
 
         <button
-          className={`btn-icon${showTOC ? ' active' : ''}`}
-          onClick={() => setShowTOC(o => !o)}
-          title="Toggle table of contents"
+          className={`btn-icon${showTOC ? ' active' : ''}${!isMarkdown ? ' disabled' : ''}`}
+          onClick={() => isMarkdown && setShowTOC(o => !o)}
+          title={isMarkdown ? 'Toggle table of contents' : 'Table of contents (markdown only)'}
+          style={!isMarkdown ? { opacity: 0.35, cursor: 'default' } : {}}
         >
           <TOCIcon />
         </button>
@@ -260,12 +329,18 @@ export default function App() {
           <div className={`drop-overlay${dragging ? ' visible' : ''}`}>
             <div className="drop-overlay-inner">
               <UploadCloudIcon />
-              <p>Drop .md files here</p>
+              <p>Drop files here</p>
             </div>
           </div>
 
           {activeFile ? (
-            <Preview file={activeFile} showTOC={showTOC} />
+            activeFile.type === 'markdown' ? (
+              <Preview file={activeFile} showTOC={showTOC} />
+            ) : activeFile.type === 'code' ? (
+              <CodeViewer file={activeFile} />
+            ) : (
+              <MediaViewer file={activeFile} />
+            )
           ) : (
             <Welcome onOpen={openFilePicker} />
           )}
@@ -276,12 +351,12 @@ export default function App() {
       <footer className="statusbar">
         <span>
           {activeFile ? (
-            <><b>{activeFile.name}</b> · {statusWords.toLocaleString()} words</>
+            <><b>{activeFile.name}</b> · {statusInfo}</>
           ) : (
-            <><b>{files.length}</b> file{files.length !== 1 ? 's' : ''} open</>
+            <b>{statusInfo}</b>
           )}
         </span>
-        <span>Markdown Reader</span>
+        <span>MarkReader</span>
       </footer>
     </div>
   )

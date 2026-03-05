@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { marked } from 'marked'
+import markedAlert from 'marked-alert'
+import markedFootnote from 'marked-footnote'
 import hljs from 'highlight.js'
 
 // Configure marked with highlight.js
@@ -35,10 +37,19 @@ renderer.code = function({ text, lang }) {
 
 renderer.heading = function({ text, depth }) {
   const slug = text.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-')
-  return `<h${depth} id="heading-${slug}">${text}</h${depth}>`
+  const id = `heading-${slug}`
+  return `<h${depth} id="${id}">
+    <a class="heading-anchor" href="#${id}" title="Copy link to section">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+      </svg>
+    </a>${text}</h${depth}>`
 }
 
 marked.use({ renderer })
+marked.use(markedAlert())
+marked.use(markedFootnote())
 
 function extractTOC(markdown) {
   const headingRegex = /^(#{1,4})\s+(.+)$/gm
@@ -74,14 +85,29 @@ export default function Preview({ file, showTOC }) {
   const [tab, setTab] = useState('preview')
   const [toc, setToc] = useState([])
   const [copiedAll, setCopiedAll] = useState(false)
+  const [progress, setProgress] = useState(0)
   const previewRef = useRef(null)
 
   useEffect(() => {
     if (file) {
       setToc(extractTOC(file.content))
       setTab('preview')
+      setProgress(0)
     }
   }, [file?.id])
+
+  // Reading progress bar
+  useEffect(() => {
+    const el = previewRef.current
+    if (!el) return
+    const onScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = el
+      const max = scrollHeight - clientHeight
+      setProgress(max > 0 ? scrollTop / max : 0)
+    }
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [tab])
 
   // Handle copy buttons inside rendered markdown
   useEffect(() => {
@@ -102,8 +128,26 @@ export default function Preview({ file, showTOC }) {
       })
     }
 
+    // Handle heading anchor clicks — copy URL to clipboard
+    const anchorHandler = (e) => {
+      const a = e.target.closest('.heading-anchor')
+      if (!a) return
+      e.preventDefault()
+      const url = window.location.href.split('#')[0] + a.getAttribute('href')
+      navigator.clipboard.writeText(url)
+      const svg = a.querySelector('svg')
+      if (svg) {
+        svg.style.color = 'var(--success)'
+        setTimeout(() => { svg.style.color = '' }, 1500)
+      }
+    }
+
     el.addEventListener('click', handler)
-    return () => el.removeEventListener('click', handler)
+    el.addEventListener('click', anchorHandler)
+    return () => {
+      el.removeEventListener('click', handler)
+      el.removeEventListener('click', anchorHandler)
+    }
   }, [tab])
 
   const scrollToHeading = useCallback((id) => {
@@ -130,6 +174,10 @@ export default function Preview({ file, showTOC }) {
   return (
     <div className="preview-wrapper">
       <div className="preview-container">
+        <div className="reading-progress">
+          <div className="reading-progress-bar" style={{ width: `${progress * 100}%` }} />
+        </div>
+
         <div className="preview-header">
           <div style={{ flex: 1, minWidth: 0 }}>
             <div className="preview-filename">{file.name}</div>
