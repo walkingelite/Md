@@ -1,0 +1,55 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: aibos
+      POSTGRES_PASSWORD: aibos
+      POSTGRES_DB: aibos
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  chromadb:
+    image: chromadb/chroma:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+
+  api:
+    build: .
+    command: uvicorn ai_bos.api.main:app --host 0.0.0.0 --port 8080 --reload
+    ports:
+      - "8080:8080"
+    env_file: .env
+    depends_on:
+      - postgres
+      - redis
+      - chromadb
+
+  worker:
+    build: .
+    command: celery -A ai_bos.workers.celery_app worker --loglevel=info
+    env_file: .env
+    depends_on:
+      - postgres
+      - redis
+
+  beat:
+    build: .
+    command: celery -A ai_bos.workers.celery_app beat --loglevel=info
+    env_file: .env
+    depends_on:
+      - redis
+
+volumes:
+  postgres_data:
+  chroma_data:
