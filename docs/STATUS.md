@@ -45,17 +45,48 @@ Correct in shape, not yet wired to anything.
 
 ## Known structural gaps
 
-Beyond unfinished wiring, three things are missing by design rather than by
-omission — see [DESIGN-NOTES.md](DESIGN-NOTES.md).
+Beyond unfinished wiring, these are missing by design rather than by omission —
+see [DESIGN-NOTES.md](DESIGN-NOTES.md).
 
-1. **No case model.** The system is event-driven, but business processes span
-   weeks and carry state. There is nowhere for "awaiting insurance verification,
-   day 4 of 10" to live.
+1. ~~**No case model.**~~ **Done** — `ai_bos/cases/`. Durable state with
+   next-action deadlines, validated transitions, and an advance-every-open-case
+   cycle. Mechanics are business-agnostic; case types are supplied by a vertical
+   pack (`cases/verticals/healthcare.py`). Not yet wired to the orchestrator.
 2. **No trust ramp.** Autonomy is all-or-nothing. There is no shadow mode, no
    draft-for-approval stage, and no per-capability promotion criteria.
 3. **No learning loop.** Layer 6 can score outcomes it is given, but nothing
    generates outcomes, and nothing converts recurring situations into questions
-   for the owner.
+   for the owner. The case model now supplies half of this — `BLOCKED` cases
+   carry `missing_facts` — but nothing consumes them yet.
+4. **The scenario catalog is not vertical-agnostic.** The simulation *engine*
+   is (clock, personas, generator, harness all industry-neutral), but
+   `simulation/scenarios.py` hardcodes dental content. About half the catalog is
+   universal — prompt injection, opt-out, misdirected messages, compound
+   requests, ambiguous dates. It should split into a universal core plus
+   pluggable vertical packs, mirroring what `cases/verticals/` already does.
+
+## Simulation results
+
+Same 227-event stream, seed 0, 20 days — stateless handler versus one with
+durable case state:
+
+| Scenario | stateless | case-aware |
+|----------|----------:|-----------:|
+| `routing.compound_request` | 28 | **0** |
+| `temporal.dormant_thread_revival` | 12 | **0** |
+| `knowledge.policy_not_on_record` | 36 | 12 |
+| `temporal.reschedule_after_the_fact` | 26 | 18 |
+| `compliance.phi_over_plain_email` | 16 | 16 |
+| `adversarial.prompt_injection` | 24 | 24 |
+| `identity.shared_household_email` | 20 | 20 |
+
+The last three are the control: the case model does not address compliance or
+identity, and correctly changes nothing there. The two partial results are
+honest rather than mysterious — `policy_not_on_record` asserts three properties
+and the handler implements two, and `reschedule_after_the_fact` needs a prior
+appointment case that does not exist for personas appearing early in the run.
+
+Reproduce with `python scripts/run_case_simulation.py --days 20`.
 
 ## Test coverage
 
@@ -68,8 +99,10 @@ tests/layer4  3   agent context budget inheritance
 tests/layer5  9   TCPA, HIPAA, CAN-SPAM
 tests/layer6  6   Goodhart guard, safety bounds
 tests/layer7  2   escalation
-              --
-              37 passing
+tests/simulation 39  clock, personas, catalog, generator, harness
+tests/cases      37  states, definitions, store, engine
+                 ---
+                 113 passing
 ```
 
 Coverage is deliberately concentrated on the constraint layer. Untested code is
