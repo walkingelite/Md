@@ -17,7 +17,7 @@ from datetime import datetime
 from ai_bos.logging_config import log
 from ai_bos.simulation.clock import SimClock
 from ai_bos.simulation.generator import EventGenerator, GeneratedEvent
-from ai_bos.simulation.scenarios import SCENARIO_CATALOG, all_assertions
+from ai_bos.simulation.scenarios import ScenarioCatalog
 
 # A handler takes the event payload and returns whatever the system did:
 #   {"assertions_held": [...], "response_text": ..., "escalated": bool, ...}
@@ -46,6 +46,8 @@ class GapEntry:
 
 @dataclass
 class SimulationReport:
+    catalog_size: int = 0
+    catalog_assertions: frozenset[str] = field(default_factory=frozenset)
     events_total: int = 0
     events_handled: int = 0
     handler_errors: int = 0
@@ -61,12 +63,12 @@ class SimulationReport:
     @property
     def catalog_coverage(self) -> float:
         """Share of the catalog this run actually exercised."""
-        return len(self.scenarios_seen) / len(SCENARIO_CATALOG) if SCENARIO_CATALOG else 0.0
+        return len(self.scenarios_seen) / self.catalog_size if self.catalog_size else 0.0
 
     @property
     def assertion_coverage(self) -> float:
         exercised = {f.assertion for f in self.failures}
-        checked = all_assertions()
+        checked = self.catalog_assertions
         return len(exercised) / len(checked) if checked else 0.0
 
     def failures_by_scenario(self) -> dict[str, list[Failure]]:
@@ -93,7 +95,7 @@ class SimulationReport:
             f"escalations          {self.escalations}",
             f"failures found       {self.failure_count}",
             f"catalog coverage     {self.catalog_coverage:.0%}"
-            f" ({len(self.scenarios_seen)}/{len(SCENARIO_CATALOG)} scenarios)",
+            f" ({len(self.scenarios_seen)}/{self.catalog_size} scenarios)",
             f"distinct gaps        {len(self.gaps)}",
         ]
         if self.failures:
@@ -115,13 +117,15 @@ class SimulationHarness:
         business_id: uuid.UUID,
         start: datetime,
         seed: int = 0,
+        catalog: ScenarioCatalog | None = None,
     ) -> None:
         self.business_id = business_id
         self.clock = SimClock(start=start)
         self.seed = seed
         self.generator = EventGenerator(
-            clock=self.clock, business_id=business_id, seed=seed
+            clock=self.clock, business_id=business_id, seed=seed, catalog=catalog
         )
+        self.catalog = self.generator.catalog
 
     async def run(
         self,
@@ -130,7 +134,12 @@ class SimulationHarness:
         events_per_day: int = 12,
     ) -> SimulationReport:
         stream = self.generator.generate_days(days, events_per_day)
-        report = SimulationReport(events_total=len(stream))
+        assert self.catalog is not None
+        report = SimulationReport(
+            events_total=len(stream),
+            catalog_size=len(self.catalog),
+            catalog_assertions=self.catalog.all_assertions(),
+        )
 
         log.info(
             "simulation.start",

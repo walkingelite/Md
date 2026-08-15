@@ -14,7 +14,14 @@ hall of mirrors:
 
 from ai_bos.simulation.clock import SimClock
 from ai_bos.simulation.personas import Persona, PersonaPool
-from ai_bos.simulation.scenarios import SCENARIO_CATALOG, Scenario, ScenarioCategory
+from ai_bos.simulation.scenarios import (
+    Difficulty,
+    Scenario,
+    ScenarioCatalog,
+    ScenarioCategory,
+    core_catalog,
+)
+from ai_bos.simulation.scenarios.verticals.healthcare import dental_catalog
 from ai_bos.simulation.generator import EventGenerator
 from ai_bos.simulation.harness import SimulationHarness, SimulationReport
 
@@ -24,7 +31,10 @@ __all__ = [
     "PersonaPool",
     "Scenario",
     "ScenarioCategory",
-    "SCENARIO_CATALOG",
+    "Difficulty",
+    "ScenarioCatalog",
+    "core_catalog",
+    "dental_catalog",
     "EventGenerator",
     "SimulationHarness",
     "SimulationReport",

@@ -16,7 +16,8 @@ from datetime import datetime, timedelta
 from ai_bos.agents.orchestrator import BusinessEvent, EventType
 from ai_bos.simulation.clock import SimClock
 from ai_bos.simulation.personas import Persona, PersonaPool
-from ai_bos.simulation.scenarios import SCENARIO_CATALOG, Difficulty, Scenario
+from ai_bos.simulation.scenarios import Difficulty, Scenario, ScenarioCatalog
+from ai_bos.simulation.scenarios.verticals.healthcare import dental_catalog
 
 CHANNEL_TO_EVENT_TYPE = {
     "EMAIL": EventType.INBOUND_EMAIL,
@@ -54,6 +55,7 @@ class EventGenerator:
     business_id: uuid.UUID
     seed: int = 0
     personas: PersonaPool | None = None
+    catalog: ScenarioCatalog | None = None
     difficulty_weights: dict[Difficulty, float] = field(
         default_factory=lambda: dict(DEFAULT_DIFFICULTY_WEIGHTS)
     )
@@ -64,6 +66,9 @@ class EventGenerator:
         if self.personas is None:
             self.personas = PersonaPool(seed=self.seed)
             self.personas.generate(24)
+        if self.catalog is None:
+            # Default keeps existing callers working; any vertical can be passed in.
+            self.catalog = dental_catalog()
 
     def generate_days(self, days: int, events_per_day: int = 12) -> list[GeneratedEvent]:
         """Produce a chronologically ordered stream spanning `days`."""
@@ -100,8 +105,9 @@ class EventGenerator:
         difficulties = list(self.difficulty_weights.keys())
         weights = [self.difficulty_weights[d] for d in difficulties]
         target = self._rng.choices(difficulties, weights=weights)[0]
-        candidates = [s for s in SCENARIO_CATALOG if s.difficulty is target]
-        return self._rng.choice(candidates or list(SCENARIO_CATALOG))
+        assert self.catalog is not None
+        candidates = list(self.catalog.by_difficulty(target))
+        return self._rng.choice(candidates or list(self.catalog.all()))
 
     def _make_event(self, moment: datetime) -> GeneratedEvent | None:
         assert self.personas is not None

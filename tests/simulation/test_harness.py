@@ -77,9 +77,9 @@ async def test_coverage_grows_with_run_length():
 
 async def test_failures_record_the_trap_for_diagnosis():
     """A failure has to carry enough context to act on without a rerun."""
-    from ai_bos.simulation.scenarios import SCENARIO_CATALOG
+    from ai_bos.simulation.scenarios.verticals.healthcare import dental_catalog
 
-    by_id = {s.scenario_id: s for s in SCENARIO_CATALOG}
+    by_id = {s.scenario_id: s for s in dental_catalog()}
     report = await _harness().run(_null_handler, days=4)
     assert report.failures
 
@@ -105,3 +105,52 @@ async def test_summary_renders():
     text = report.summary()
     assert "Simulation report" in text
     assert "failures found" in text
+
+
+async def test_runs_with_a_core_only_catalog():
+    """Proof the engine is vertical-agnostic in practice, not just in data:
+    a business with no vertical pack still gets a full simulation."""
+    import uuid
+    from datetime import datetime, timezone
+
+    from ai_bos.simulation.harness import SimulationHarness
+    from ai_bos.simulation.scenarios import core_catalog
+
+    catalog = core_catalog()
+    harness = SimulationHarness(
+        business_id=uuid.uuid4(),
+        start=datetime(2026, 1, 7, 8, 0, tzinfo=timezone.utc),
+        seed=3,
+        catalog=catalog,
+    )
+    report = await harness.run(_null_handler, days=20)
+
+    assert report.events_total > 0
+    assert report.failure_count > 0
+    assert report.catalog_size == len(catalog)
+    # No healthcare scenario may appear when no healthcare pack was loaded.
+    assert all(not sid.startswith("healthcare.") for sid in report.scenarios_seen)
+
+
+async def test_different_verticals_produce_different_streams():
+    import uuid
+    from datetime import datetime, timezone
+
+    from ai_bos.simulation.harness import SimulationHarness
+    from ai_bos.simulation.scenarios import core_catalog
+    from ai_bos.simulation.scenarios.verticals.healthcare import dental_catalog
+
+    start = datetime(2026, 1, 7, 8, 0, tzinfo=timezone.utc)
+    bid = uuid.uuid4()
+
+    core_report = await SimulationHarness(
+        bid, start, seed=9, catalog=core_catalog()
+    ).run(_null_handler, days=15)
+    dental_report = await SimulationHarness(
+        bid, start, seed=9, catalog=dental_catalog()
+    ).run(_null_handler, days=15)
+
+    assert core_report.catalog_size < dental_report.catalog_size
+    assert any(
+        sid.startswith("healthcare.") for sid in dental_report.scenarios_seen
+    )
