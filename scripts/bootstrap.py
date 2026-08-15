@@ -19,9 +19,9 @@ async def main() -> None:
     # 2. Verify DB connection and create tables
     try:
         from ai_bos.db.base import Base
-        from ai_bos.db.session import engine
+        from ai_bos.db.session import get_engine
         from ai_bos.db.models import business, customer, action, communication, improvement  # noqa
-        async with engine.begin() as conn:
+        async with get_engine().begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
         print("✓ Database tables created")
     except Exception as e:
