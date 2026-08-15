@@ -28,7 +28,8 @@ Correct in shape, not yet wired to anything.
 
 - **Agents do not act.** `CommunicationAgent`, `SchedulingAgent` and
   `FinanceAgent` each call the model once and return draft text. None calls
-  `ToolExecutor`. The loop never closes.
+  `ToolExecutor`. The loop never closes. They now *receive* case context from
+  the orchestrator but do not yet transition the cases they are given.
 - **Memory is never populated.** `MemoryStore.write_fact` is implemented and
   correct, but no code path calls it during operation.
 - **Tools are registered, never invoked.** `bootstrap.py` registers five tools;
@@ -48,22 +49,21 @@ Correct in shape, not yet wired to anything.
 Beyond unfinished wiring, these are missing by design rather than by omission —
 see [DESIGN-NOTES.md](DESIGN-NOTES.md).
 
-1. ~~**No case model.**~~ **Done** — `ai_bos/cases/`. Durable state with
-   next-action deadlines, validated transitions, and an advance-every-open-case
-   cycle. Mechanics are business-agnostic; case types are supplied by a vertical
-   pack (`cases/verticals/healthcare.py`). Not yet wired to the orchestrator.
+1. ~~**No case model.**~~ **Done** — `ai_bos/cases/`, wired to the
+   orchestrator. Durable state with next-action deadlines, validated
+   transitions, and an advance-every-open-case cycle that now runs on the
+   orchestrator's idle tick. Mechanics are business-agnostic; case types come
+   from a vertical pack (`cases/verticals/healthcare.py`).
 2. **No trust ramp.** Autonomy is all-or-nothing. There is no shadow mode, no
    draft-for-approval stage, and no per-capability promotion criteria.
 3. **No learning loop.** Layer 6 can score outcomes it is given, but nothing
    generates outcomes, and nothing converts recurring situations into questions
    for the owner. The case model now supplies half of this — `BLOCKED` cases
    carry `missing_facts` — but nothing consumes them yet.
-4. **The scenario catalog is not vertical-agnostic.** The simulation *engine*
-   is (clock, personas, generator, harness all industry-neutral), but
-   `simulation/scenarios.py` hardcodes dental content. About half the catalog is
-   universal — prompt injection, opt-out, misdirected messages, compound
-   requests, ambiguous dates. It should split into a universal core plus
-   pluggable vertical packs, mirroring what `cases/verticals/` already does.
+4. ~~**The scenario catalog is not vertical-agnostic.**~~ **Done** —
+   `simulation/scenarios/` now splits into a 15-scenario universal core and
+   vertical packs (`scenarios/verticals/healthcare.py`, 4 scenarios). Catalogs
+   are instances, so one process can simulate two verticals at once.
 
 ## Simulation results
 
@@ -99,10 +99,10 @@ tests/layer4  3   agent context budget inheritance
 tests/layer5  9   TCPA, HIPAA, CAN-SPAM
 tests/layer6  6   Goodhart guard, safety bounds
 tests/layer7  2   escalation
-tests/simulation 39  clock, personas, catalog, generator, harness
-tests/cases      37  states, definitions, store, engine
+tests/simulation 48  clock, personas, catalog split, generator, harness
+tests/cases      50  states, definitions, store, engine, orchestrator wiring
                  ---
-                 113 passing
+                 133 passing
 ```
 
 Coverage is deliberately concentrated on the constraint layer. Untested code is
