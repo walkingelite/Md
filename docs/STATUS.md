@@ -26,10 +26,10 @@ layer is complete. The generative layer is not.
 
 Correct in shape, not yet wired to anything.
 
-- **Agents do not act.** `CommunicationAgent`, `SchedulingAgent` and
-  `FinanceAgent` each call the model once and return draft text. None calls
-  `ToolExecutor`. The loop never closes. They now *receive* case context from
-  the orchestrator but do not yet transition the cases they are given.
+- **`SchedulingAgent` and `FinanceAgent` still only draft.**
+  `CommunicationAgent` now closes the loop — it drafts, dispatches through
+  `ToolExecutor`, and settles its cases on the result. The other two have not
+  been converted.
 - **Memory is never populated.** `MemoryStore.write_fact` is implemented and
   correct, but no code path calls it during operation.
 - **Tools are registered, never invoked.** `bootstrap.py` registers five tools;
@@ -38,9 +38,10 @@ Correct in shape, not yet wired to anything.
   degraded path if it is absent.
 - **Calendar tools are stubs.** `BookAppointmentTool` returns a synthetic
   confirmation without touching a real calendar.
-- **Delivery confirmation is one-directional.** Sends are marked
-  `EXECUTED_UNVERIFIED`; the SendGrid and Twilio webhook receivers that would
-  promote them to `CONFIRMED` do not exist.
+- **Webhook receivers exist but are unproven against live traffic.**
+  `api/routers/webhooks.py` settles SendGrid and Twilio events and verifies
+  Stripe signatures. The action lookup scans unverified rows rather than
+  querying by provider id — correct but not indexed for volume.
 - **No Alembic revision has been generated.** `alembic/env.py` is configured but
   `alembic/versions/` is empty; `bootstrap.py` uses `create_all` instead.
 
@@ -54,12 +55,13 @@ see [DESIGN-NOTES.md](DESIGN-NOTES.md).
    transitions, and an advance-every-open-case cycle that now runs on the
    orchestrator's idle tick. Mechanics are business-agnostic; case types come
    from a vertical pack (`cases/verticals/healthcare.py`).
-2. **No trust ramp.** Autonomy is all-or-nothing. There is no shadow mode, no
-   draft-for-approval stage, and no per-capability promotion criteria.
-3. **No learning loop.** Layer 6 can score outcomes it is given, but nothing
-   generates outcomes, and nothing converts recurring situations into questions
-   for the owner. The case model now supplies half of this — `BLOCKED` cases
-   carry `missing_facts` — but nothing consumes them yet.
+2. ~~**No trust ramp.**~~ **Done** — `ai_bos/trust/`. Four stages per
+   capability with mechanical promotion, ceilings that pin money and regulated
+   data below full autonomy permanently, and demotion on rejection. Enforced
+   inside `ToolExecutor`, so an agent never sees the decision.
+3. ~~**No learning loop.**~~ **Partly done** — `improvement/gap_ledger.py`
+   turns `BLOCKED` cases into a ranked owner interview script. Outcome
+   generation from real sends is still missing.
 4. ~~**The scenario catalog is not vertical-agnostic.**~~ **Done** —
    `simulation/scenarios/` now splits into a 15-scenario universal core and
    vertical packs (`scenarios/verticals/healthcare.py`, 4 scenarios). Catalogs
@@ -100,9 +102,10 @@ tests/layer5  9   TCPA, HIPAA, CAN-SPAM
 tests/layer6  6   Goodhart guard, safety bounds
 tests/layer7  2   escalation
 tests/simulation 48  clock, personas, catalog split, generator, harness
-tests/cases      50  states, definitions, store, engine, orchestrator wiring
+tests/cases      57  states, definitions, store, engine, orchestrator, gap ledger
+tests/trust      38  stages, policy, ledger, gate, executor gating, webhooks
                  ---
-                 133 passing
+                 178 passing
 ```
 
 Coverage is deliberately concentrated on the constraint layer. Untested code is

@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from ai_bos.api.routers import business, owner, status
+from ai_bos.api.routers import business, owner, status, webhooks
 from ai_bos.logging_config import configure_logging
 from ai_bos.config import settings
 
@@ -25,3 +25,4 @@ app = FastAPI(
 app.include_router(business.router, prefix="/business", tags=["business"])
 app.include_router(owner.router, prefix="/owner", tags=["owner"])
 app.include_router(status.router, prefix="/status", tags=["status"])
+app.include_router(webhooks.router, prefix="/webhooks", tags=["webhooks"])

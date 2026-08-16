@@ -16,12 +16,16 @@ from sqlalchemy import select
 from ai_bos.db.models.action import ActionLog
 from ai_bos.db.session import AsyncSessionLocal
 from ai_bos.tools.base import BaseTool, ExecutionContext, ToolResult, ToolResultStatus
+from ai_bos.trust.gate import GateAction, TrustGate
 from ai_bos.logging_config import log, bind_audit_context
 
 
 class ToolExecutor:
-    def __init__(self) -> None:
+    def __init__(self, trust_gate: TrustGate | None = None) -> None:
         self._registry: dict[str, BaseTool] = {}
+        # The gate lives here rather than in the agent: an agent never sees the
+        # decision, so it cannot reason its way past it.
+        self.trust_gate = trust_gate
 
     def register(self, tool: BaseTool) -> None:
         self._registry[tool.name] = tool
@@ -31,6 +35,8 @@ class ToolExecutor:
         tool_name: str,
         params: dict[str, Any],
         context: ExecutionContext,
+        capability: str | None = None,
+        force_supervision: bool = False,
     ) -> ToolResult:
         tool = self._registry.get(tool_name)
         if not tool:
@@ -57,11 +63,45 @@ class ToolExecutor:
             log.info("executor.dry_run", tool=tool_name, params=params)
             return ToolResult(status=ToolResultStatus.DRY_RUN, data={"would_call": tool_name, "params": params})
 
-        # 3. Pre-execution log entry
+        # 3. Trust gate — a capability below AUTO never dispatches from here.
+        if self.trust_gate is not None and capability:
+            decision = self.trust_gate.decide(
+                capability, force_supervision=force_supervision
+            )
+            if not decision.will_reach_customer:
+                status = (
+                    ToolResultStatus.SHADOWED
+                    if decision.action is GateAction.LOG_ONLY
+                    else ToolResultStatus.AWAITING_APPROVAL
+                )
+                await self._log_gated(
+                    tool_name, params, context, idempotency_key, status, decision
+                )
+                log.info(
+                    "executor.gated",
+                    tool=tool_name,
+                    capability=capability,
+                    action=decision.action.value,
+                    stage=decision.stage.value,
+                )
+                return ToolResult(
+                    status=status,
+                    data={
+                        "capability": capability,
+                        "stage": decision.stage.value,
+                        "gate_action": decision.action.value,
+                        "reason": decision.reason,
+                        "would_call": tool_name,
+                        "params": params,
+                    },
+                    idempotency_key=idempotency_key,
+                )
+
+        # 4. Pre-execution log entry
         action_id = await self._log_pending(tool_name, params, context, idempotency_key)
         bind_audit_context(action_id=str(action_id))
 
-        # 4. Execute
+        # 5. Execute
         try:
             result = await tool._execute(params, context)
         except Exception as exc:
@@ -71,7 +111,7 @@ class ToolExecutor:
 
         await self._update_log(action_id, result.status, data=result.data)
 
-        # 5. Post-execution verification
+        # 6. Post-execution verification
         if tool.requires_verification:
             try:
                 result = await tool._verify(result, context)
@@ -82,6 +122,40 @@ class ToolExecutor:
 
         log.info("executor.complete", tool=tool_name, status=result.status.value)
         return result
+
+    async def _log_gated(
+        self,
+        tool_name: str,
+        params: dict,
+        context: ExecutionContext,
+        idempotency_key: str,
+        status: ToolResultStatus,
+        decision: Any,
+    ) -> None:
+        """Shadow and pending-approval actions are logged like any other.
+
+        The shadow log is the artifact that earns autonomy, so an action that
+        was considered and withheld has to be as visible as one that ran.
+        """
+        async with AsyncSessionLocal() as session:
+            session.add(
+                ActionLog(
+                    business_id=context.business_id,
+                    agent_type=context.agent_type,
+                    task_id=context.task_id,
+                    tool_name=tool_name,
+                    parameters_json=params,
+                    result_json={
+                        "gate_action": decision.action.value,
+                        "stage": decision.stage.value,
+                        "reason": decision.reason,
+                    },
+                    status=status.value,
+                    idempotency_key=f"{idempotency_key}|{status.value}|{uuid.uuid4()}",
+                    dry_run=False,
+                )
+            )
+            await session.commit()
 
     async def _get_prior_result(self, idempotency_key: str) -> ToolResult | None:
         async with AsyncSessionLocal() as session:

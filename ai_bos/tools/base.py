@@ -19,6 +19,8 @@ class ToolResultStatus(str, Enum):
     TIMEOUT = "TIMEOUT"
     ROLLED_BACK = "ROLLED_BACK"
     DRY_RUN = "DRY_RUN"
+    SHADOWED = "SHADOWED"                    # trust gate: logged, never sent
+    AWAITING_APPROVAL = "AWAITING_APPROVAL"  # trust gate: queued for the owner
 
 
 @dataclass
