@@ -45,6 +45,20 @@ Correct in shape, not yet wired to anything.
 - **No Alembic revision has been generated.** `alembic/env.py` is configured but
   `alembic/versions/` is empty; `bootstrap.py` uses `create_all` instead.
 
+## System of record
+
+`ai_bos/domain/` is event-sourced: state is folded from an append-only log
+rather than stored, which gives complete history, `as_of` reconstruction for
+audits, and a migration path — another system's history imports as events and
+projects identically to native ones while staying distinguishable by `source`.
+
+Entities are generic (party, resource, service, booking, obligation,
+transaction, document) because a dental practice, a plumbing company and a
+salon differ in vocabulary, not structure. `domain/verticals/` supplies the
+vocabulary.
+
+See [GOVERNANCE.md](GOVERNANCE.md) for what an instance may change by itself.
+
 ## Known structural gaps
 
 Beyond unfinished wiring, these are missing by design rather than by omission —
@@ -104,8 +118,11 @@ tests/layer7  2   escalation
 tests/simulation 48  clock, personas, catalog split, generator, harness
 tests/cases      57  states, definitions, store, engine, orchestrator, gap ledger
 tests/trust      38  stages, policy, ledger, gate, executor gating, webhooks
+tests/domain     21  event store, projections, as-of reconstruction
+tests/migration  12  import idempotency, provenance, honest reporting
+tests/platform   13  change tiers, redaction, fleet corroboration
                  ---
-                 178 passing
+                 224 passing
 ```
 
 Coverage is deliberately concentrated on the constraint layer. Untested code is
